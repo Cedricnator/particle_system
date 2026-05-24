@@ -10,15 +10,19 @@ constexpr float DRAG{0.99f};
 constexpr float GRAVITY{9.81f};
 constexpr float BOUNCE{0.8f};
 
-// el circulo a dibujar
+enum DeltaPosition {
+  X = 0,
+  Y = 1,
+};
+
+// the tile to draw
 struct Particle {
   Vector2 position{};
   Vector2 velocity{};
   float radius{};
 };
 
-// genera un float aleatorio de forma random
-float random_range(float min, float max) {
+float gen_random_range(float min, float max) {
   static std::mt19937 generator{std::random_device()()};
   std::uniform_real_distribution<float> range{min, max};
   return range(generator);
@@ -33,18 +37,17 @@ public:
     for (size_t i{}; i < INITIAL_PARTICULES_AMOUNT; i++) {
       Particle particle{};
 
-      particle.position = Vector2{random_range(0.0f, GetScreenWidth()),
-                                  random_range(0.0f, GetScreenHeight())};
+      particle.position = Vector2{gen_random_range(0.0f, GetScreenWidth()),
+                                  gen_random_range(0.0f, GetScreenHeight())};
       particle.velocity =
-          Vector2{random_range(-MAX_INITIAL_SPEED, MAX_INITIAL_SPEED),
-                  random_range(-MAX_INITIAL_SPEED, MAX_INITIAL_SPEED)};
-      particle.radius = random_range(MIN_RADIUS, MAX_RADIUS);
+          Vector2{gen_random_range(-MAX_INITIAL_SPEED, MAX_INITIAL_SPEED),
+                  gen_random_range(-MAX_INITIAL_SPEED, MAX_INITIAL_SPEED)};
+      particle.radius = gen_random_range(MIN_RADIUS, MAX_RADIUS);
 
       m_particles.push_back(particle);
     };
   }
 
-  // se dibujan las particulas
   void draw() {
     for (const auto &particle : m_particles) {
       DrawCircle(particle.position.x, particle.position.y, particle.radius,
@@ -53,7 +56,15 @@ public:
   }
 
   void update(float dt) {
+    static Vector2 last_window_position{GetWindowPosition()};
+
     for (auto &particle : m_particles) {
+      float dx = calculate_delta_position(&last_window_position, X);
+      float dy = calculate_delta_position(&last_window_position, Y);
+
+      particle.velocity.x += dx;
+      particle.velocity.y += dy;
+
       particle.velocity.x *= DRAG;
       particle.velocity.y *= DRAG;
 
@@ -62,45 +73,58 @@ public:
       particle.position.x += particle.velocity.x * dt;
       particle.position.y += particle.velocity.y * dt;
 
-      bool hit_right{particle.position.x + particle.radius >= GetScreenWidth()};
-      bool hit_left{particle.position.x - particle.radius <= 0};
-
-      bool hit_down{particle.position.y + particle.radius >= GetScreenHeight()};
-      bool hit_up{particle.position.y - particle.radius <= 0};
-
-      if (hit_right) {
-        particle.position.x = GetScreenWidth() - particle.radius;
-        particle.velocity.x *= -BOUNCE;
-      }
-
-      if (hit_left) {
-        particle.position.x = particle.radius;
-        particle.velocity.x *= -BOUNCE;
-      }
-
-      if (hit_up) {
-        particle.position.y = particle.radius;
-        particle.velocity.y *= -BOUNCE;
-      }
-
-      if (hit_down) {
-        particle.position.y = GetScreenWidth() - particle.radius;
-        particle.velocity.y *= -BOUNCE;
-      }
+      detect_window_collition(&particle);
     }
+
+    last_window_position = GetWindowPosition();
   }
 
 private:
   std::vector<Particle> m_particles{};
+
+  void detect_window_collition(Particle *particle) {
+    bool hit_right{particle->position.x + particle->radius >= GetScreenWidth()};
+    bool hit_left{particle->position.x - particle->radius <= 0};
+
+    bool hit_down{particle->position.y + particle->radius >= GetScreenHeight()};
+    bool hit_up{particle->position.y - particle->radius <= 0};
+
+    if (hit_right) {
+      particle->position.x = GetScreenWidth() - particle->radius;
+      particle->velocity.x *= -BOUNCE;
+    }
+
+    if (hit_left) {
+      particle->position.x = particle->radius;
+      particle->velocity.x *= -BOUNCE;
+    }
+
+    if (hit_up) {
+      particle->position.y = particle->radius;
+      particle->velocity.y *= -BOUNCE;
+    }
+
+    if (hit_down) {
+      particle->position.y = GetScreenWidth() - particle->radius;
+      particle->velocity.y *= -BOUNCE;
+    }
+  }
+
+  float calculate_delta_position(Vector2 *lwp, DeltaPosition dp) {
+    if (dp == X) {
+      return lwp->x - GetWindowPosition().x;
+    }
+    return lwp->y - GetWindowPosition().y;
+  }
 };
 
 int main() {
   const int WINDOW_HEIGHT = 1000;
   const int WINDOW_WIDTH = 1000;
-  const int FPS = 120;
+  const int TARGET_FPS = 120;
 
-  InitWindow(WINDOW_HEIGHT, WINDOW_WIDTH, "particle");
-  SetTargetFPS(FPS);
+  InitWindow(WINDOW_HEIGHT, WINDOW_WIDTH, "Particle System");
+  SetTargetFPS(TARGET_FPS);
 
   ParticleSimulation particle_simulation{};
 
